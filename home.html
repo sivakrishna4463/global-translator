@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translate Website</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            position: relative;
+        }
+
+        .video-container {
+            text-align: center;
+            position: relative;
+        }
+
+        video {
+            width: 150vw;
+            max-width: 1500px;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+
+        .login-btn {
+            position:absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translate(-50%);
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 18px;
+            text-align: end;
+            cursor: pointer;
+        }
+
+        .login-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <a href="3.html">
+            <video src="Untitled.mp4" autoplay loop ></video>
+        </a>
+        <button class="login-btn" onclick="window.location.href='3.html'">Login</button>
+    </div>
+    <audio id="background-audio" src="sound.m4a" autoplay loop></audio>
+</body>
+</html>
+

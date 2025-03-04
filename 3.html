@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-Time Speech Translator</title>
+  <style>
+/* Import Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+/* Global Styles */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fad0c4, #fbc2eb);
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* Heading */
+h2 {
+  text-align: center;
+  font-size: 2.2em;
+  font-weight: 700;
+  color: #6a0572;
+  margin-bottom: 25px;
+  text-transform: uppercase;
+}
+
+/* Main Container */
+.container {
+  background: #ffffff;
+  max-width: 600px;
+  width: 90%;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0px 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Labels */
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 20px;
+  color: #6a0572;
+  font-size: 1.1em;
+}
+
+/* Input Fields */
+input[type="text"],
+select,
+input[type="range"] {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  box-sizing: border-box;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1em;
+  transition: 0.3s ease-in-out;
+  background: #f9f9f9;
+}
+
+/* Input Focus Effect */
+input:focus,
+select:focus {
+  border-color: #ff6b6b;
+  outline: none;
+  box-shadow: 0px 0px 8px rgba(255, 107, 107, 0.5);
+}
+
+/* Buttons */
+button {
+  margin-top: 25px;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+  color: white;
+  font-size: 1.2em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s ease-in-out;
+  letter-spacing: 1px;
+}
+
+button:hover {
+  background: linear-gradient(135deg, #ff4b4b, #ff7b30);
+  transform: scale(1.03);
+}
+
+/* Results & Location Display */
+#translatedText, #userLocation {
+  margin-top: 20px;
+  font-size: 1.3em;
+  font-style: italic;
+  color: #333;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Map Styling */
+#worldMap {
+  margin-top: 25px;
+  border: 3px solid #ff6b6b;
+  border-radius: 10px;
+  padding: 15px;
+  text-align: center;
+  font-weight: bold;
+  color: #e74c3c;
+  background: rgba(255, 235, 235, 0.8);
+}
+
+
+  </style>
+</head>
+<body>
+  <h2>🌎 Real-Time Speech Translator</h2>
+  <div>
+    <label for="countrySearch">Search Country:</label>
+    <input type="text" id="countrySearch" placeholder="Search country..."/>
+    
+    <label for="sourceLang">Source Language:</label>
+    <select id="sourceLang"></select>
+    
+    <label for="targetLangSearch">Search Target Language:</label>
+    <input type="text" id="targetLangSearch" placeholder="Search language..."/>
+    
+    <label for="targetLang">Target Language:</label>
+    <select id="targetLang"></select>
+    
+    <button id="startBtn">🎤 Start Listening</button>
+    <button id="stopBtn">⏹ Stop</button>
+    
+    <p id="translatedText"></p>
+    
+    <label for="voiceSelect">Choose Voice:</label>
+    <select id="voiceSelect"></select>
+    
+    <label for="volume">Volume:</label>
+    <input type="range" id="volume" min="0" max="1" step="0.1" value="1">
+    
+    <label for="pitch">Pitch:</label>
+    <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+    
+    <label for="rate">Rate:</label>
+    <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
+    
+    <p id="userLocation"></p>
+  </div>
+  
+  <div id="worldMap" style="width: 100%; height: 500px;"></div>
+
+  <script>
+    // Load amCharts Library and Ensure Proper Initialization
+    function loadScript(src, callback) {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = callback;
+      document.head.appendChild(script);
+    }
+    
+    loadScript("https://cdn.amcharts.com/lib/4/core.js", () => {
+      loadScript("https://cdn.amcharts.com/lib/4/maps.js", () => {
+        loadScript("https://cdn.amcharts.com/lib/4/geodata/worldLow.js", () => {
+          loadScript("https://cdn.amcharts.com/lib/4/themes/animated.js", initializeMap);
+        });
+      });
+    });
+    
+    // Initialize amCharts Map Only After Scripts Load
+    function initializeMap() {
+      am4core.useTheme(am4themes_animated);
+      let chart = am4core.create("worldMap", am4maps.MapChart);
+      chart.geodata = am4geodata_worldLow;
+      chart.projection = new am4maps.projections.Miller();
+    
+      let polygonSeries = chart.series.push(new am4maps.MapPolygonSeries());
+      polygonSeries.useGeodata = true;
+      let polygonTemplate = polygonSeries.mapPolygons.template;
+      polygonTemplate.tooltipText = "{name}";
+      polygonTemplate.fill = am4core.color("#67b7dc");
+    
+      polygonTemplate.events.on("hit", function (ev) {
+        const country = ev.target.dataItem.dataContext.name;
+        updateSourceLanguage(country);
+      });
+    }
+    
+    // Country to Language Mapping
+const countryLanguageMap = {
+  "United States": "en",
+  "India": "hi", 
+  "Spain": "es",
+  "France": "fr",
+  "Germany": "de",
+  "China": "zh-CN",
+  "Saudi Arabia": "ar",
+  "Bangladesh": "bn",
+  "Russia": "ru",
+  "Brazil": "pt",
+  "Japan": "ja",
+  "Italy": "it",
+  "South Korea": "ko",
+  "Turkey": "tr",
+  "Netherlands": "nl",
+  "Sweden": "sv",
+  "Poland": "pl",
+  "Ukraine": "uk",
+  "Israel": "he",
+  "Indonesia": "id",
+  "Iran": "fa",
+  "Thailand": "th",
+  "Vietnam": "vi",
+  "Czech Republic": "cs",
+  "Hungary": "hu",
+  "Greece": "el",
+  "Denmark": "da",
+  "Finland": "fi",
+  "Romania": "ro",
+  "Norway": "no",
+  "Malaysia": "ms",
+  "Pakistan": "ur",
+  "Sri Lanka": "ta",
+  "Mexico": "es",
+  "South Africa": "en",
+  "Argentina": "es",
+  "Austria": "de",
+  "Belgium": "nl",
+  "Switzerland": "de",
+  "Canada": "en",
+  "Australia": "en",
+  "New Zealand": "en",
+  "Portugal": "pt",
+  "Ireland": "en",
+  "Singapore": "en",
+  "Philippines": "en",
+  "Egypt": "ar",
+  "Nigeria": "en",
+  "Kenya": "en",
+  "Colombia": "es",
+  "Chile": "es",
+  "Peru": "es",
+  "Venezuela": "es",
+  "Cuba": "es",
+  "Ecuador": "es",
+  "Bolivia": "es",
+  "Paraguay": "es",
+  "Uruguay": "es",
+  "Costa Rica": "es",
+  "Panama": "es",
+  "Dominican Republic": "es",
+  "Puerto Rico": "es",
+  "Guatemala": "es",
+  "Honduras": "es",
+  "El Salvador": "es",
+  "Nicaragua": "es",
+  "Iraq": "ar",
+  "Syria": "ar",
+  "Jordan": "ar",
+  "Lebanon": "ar",
+  "Yemen": "ar",
+  "Oman": "ar",
+  "Qatar": "ar",
+  "Kuwait": "ar",
+  "United Arab Emirates": "ar",
+  "Afghanistan": "ps",
+  "Nepal": "ne",
+  "Myanmar": "my",
+  "Cambodia": "km",
+  "Laos": "lo",
+  "Mongolia": "mn",
+  "Kazakhstan": "kk",
+  "Uzbekistan": "uz",
+  "Tajikistan": "tg",
+  "Kyrgyzstan": "ky",
+  "Turkmenistan": "tk",
+  "Azerbaijan": "az",
+  "Georgia": "ka",
+  "Armenia": "hy",
+  "Belarus": "be",
+  "Lithuania": "lt",
+  "Latvia": "lv",
+  "Estonia": "et",
+  "Slovakia": "sk",
+  "Slovenia": "sl",
+  "Croatia": "hr",
+  "Serbia": "sr",
+  "Bulgaria": "bg",
+  "Albania": "sq",
+  "North Macedonia": "mk",
+  "Montenegro": "sr",
+  "Bosnia and Herzegovina": "bs",
+  "Iceland": "is",
+  "Luxembourg": "lb",
+  "Malta": "mt",
+  "Cyprus": "el",
+  "Andorra": "ca",
+  "Monaco": "fr",
+  "Liechtenstein": "de",
+  "San Marino": "it",
+  "Vatican City": "la",
+  "Maldives": "dv",
+  "Bhutan": "dz",
+  "Brunei": "ms",
+  "Timor-Leste": "pt",
+  "Fiji": "en",
+  "Samoa": "sm",
+  "Tonga": "to",
+  "Vanuatu": "bi",
+  "Solomon Islands": "en",
+  "Papua New Guinea": "en",
+  "Palau": "en",
+  "Marshall Islands": "en",
+  "Micronesia": "en",
+  "Nauru": "en",
+  "Kiribati": "en",
+  "Tuvalu": "en",
+  "Seychelles": "en",
+  "Mauritius": "en",
+  "Comoros": "ar",
+  "Madagascar": "mg",
+  "Mozambique": "pt",
+  "Angola": "pt",
+  "Namibia": "en",
+  "Botswana": "en",
+  "Zimbabwe": "en",
+  "Zambia": "en",
+  "Malawi": "en",
+  "Tanzania": "sw",
+  "Uganda": "en",
+  "Rwanda": "rw",
+  "Burundi": "rn",
+  "Somalia": "so",
+  "Djibouti": "fr",
+  "Eritrea": "ti",
+  "Ethiopia": "am",
+  "South Sudan": "en",
+  "Sudan": "ar",
+  "Chad": "fr",
+  "Niger": "fr",
+  "Mali": "fr",
+  "Burkina Faso": "fr",
+  "Guinea": "fr",
+  "Senegal": "fr",
+  "Gambia": "en",
+  "Guinea-Bissau": "pt",
+  "Sierra Leone": "en",
+  "Liberia": "en",
+  "Côte d'Ivoire": "fr",
+  "Ghana": "en",
+  "Togo": "fr",
+  "Benin": "fr",
+  "Cameroon": "fr",
+  "Central African Republic": "fr",
+  "Equatorial Guinea": "es",
+  "Gabon": "fr",
+  "Republic of the Congo": "fr",
+  "Democratic Republic of the Congo": "fr",
+  "São Tomé and Príncipe": "pt",
+  "Cape Verde": "pt",
+  "Mauritania": "ar",
+  "Western Sahara": "ar",
+  "Morocco": "ar",
+  "Tunisia": "ar",
+  "Libya": "ar",
+  "Algeria": "ar",
+  "Haiti": "ht",
+  "Jamaica": "en",
+  "Trinidad and Tobago": "en",
+  "Barbados": "en",
+  "Bahamas": "en",
+  "Belize": "en",
+  "Guyana": "en",
+  "Suriname": "nl",
+  "French Guiana": "fr",
+  "Falkland Islands": "en",
+  "Greenland": "kl",
+  "Faroe Islands": "fo",
+  "Gibraltar": "en",
+  "Bermuda": "en",
+  "Cayman Islands": "en",
+  "British Virgin Islands": "en",
+  "U.S. Virgin Islands": "en",
+  "Aruba": "nl",
+  "Curaçao": "nl",
+  "Sint Maarten": "nl",
+  "Saint Kitts and Nevis": "en",
+  "Antigua and Barbuda": "en",
+  "Dominica": "en",
+  "Saint Lucia": "en",
+  "Saint Vincent and the Grenadines": "en",
+  "Grenada": "en",
+  "Montserrat": "en",
+  "Anguilla": "en",
+  "Turks and Caicos Islands": "en",
+  "Saint Pierre and Miquelon": "fr",
+  "Wallis and Futuna": "fr",
+  "New Caledonia": "fr",
+  "French Polynesia": "fr",
+  "Cook Islands": "en",
+  "Niue": "en",
+  "Tokelau": "en",
+  "American Samoa": "en",
+  "Guam": "en",
+  "Northern Mariana Islands": "en",
+  "Hong Kong": "zh-HK",
+  "Macau": "zh-MO",
+  "Taiwan": "zh-TW",
+  "Palestine": "ar",
+  "Kosovo": "sq",
+  "Somaliland": "so",
+  "Transnistria": "ru",
+  "Abkhazia": "ab",
+  "South Ossetia": "os",
+  "Nagorno-Karabakh": "hy",
+  "Northern Cyprus": "tr",
+  "Sahrawi Arab Democratic Republic": "ar",
+  "Artsakh": "hy",
+  "ap &ts" : "te"
+};
+    
+    // Indian States and Their Official Languages
+    const indianStates = {
+      "Andhra Pradesh": "te", "Arunachal Pradesh": "en", "Assam": "as", "Bihar": "hi",
+      "Chhattisgarh": "hi", "Goa": "kok", "Gujarat": "gu", "Haryana": "hi",
+      "Himachal Pradesh": "hi", "Jharkhand": "hi", "Karnataka": "kn", "Kerala": "ml",
+      "Madhya Pradesh": "hi", "Maharashtra": "mr", "Manipur": "mni", "Meghalaya": "en",
+      "Mizoram": "mizo", "Nagaland": "en", "Odisha": "or", "Punjab": "pa", "Rajasthan": "hi",
+      "Sikkim": "ne", "Tamil Nadu": "ta", "Telangana": "te", "Tripura": "bn",
+      "Uttar Pradesh": "hi", "Uttarakhand": "hi", "West Bengal": "bn"
+    };
+    
+    // Populate Source and Target Language Dropdowns
+    const sourceLang = document.getElementById("sourceLang");
+    const targetLang = document.getElementById("targetLang");
+    
+    Object.entries(countryLanguageMap).forEach(([country, code]) => {
+      sourceLang.innerHTML += `<option value="${code}">${country} (${code})</option>`;
+      targetLang.innerHTML += `<option value="${code}">${country} (${code})</option>`;
+    });
+    
+    // Set default target language to English
+    targetLang.value = "en";
+    
+    // Update Source Language Dropdown Based on Country Selection
+    function updateSourceLanguage(country) {
+      if (country === "India") {
+        sourceLang.innerHTML = "<option value='hi'>Hindi (Default)</option>";
+        Object.entries(indianStates).forEach(([state, lang]) => {
+          sourceLang.innerHTML += `<option value="${lang}">${state} (${lang})</option>`;
+        });
+      } else if (countryLanguageMap[country]) {
+        sourceLang.innerHTML = `<option value="${countryLanguageMap[country]}">${countryLanguageMap[country]}</option>`;
+      }
+    }
+    
+    // Load available voices
+    const voiceSelect = document.getElementById("voiceSelect");
+    function populateVoices() {
+      let voices = speechSynthesis.getVoices();
+      voiceSelect.innerHTML = "";
+      voices.forEach((voice, index) => {
+        voiceSelect.innerHTML += `<option value="${index}">${voice.name} (${voice.lang})</option>`;
+      });
+    }
+    speechSynthesis.onvoiceschanged = populateVoices;
+    populateVoices();
+    
+// Speech Recognition
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const translatedText = document.getElementById("translatedText");
+
+const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+recognition.continuous = true; // Keep recognizing until manually stopped
+recognition.interimResults = true; // Provide real-time results
+recognition.lang = "en";
+let silenceTimeout;
+
+startBtn.onclick = () => {
+  recognition.lang = sourceLang.value;
+  recognition.start();
+};
+
+stopBtn.onclick = () => {
+  recognition.stop();
+  clearTimeout(silenceTimeout);
+};
+
+recognition.onresult = async (event) => {
+  clearTimeout(silenceTimeout);
+  let speechText = "";
+  let finalText = "";
+  
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    speechText = event.results[i][0].transcript;
+    if (event.results[i].isFinal) { // Process only final results
+      finalText = speechText;
+      let translated = await translateText(finalText, sourceLang.value, targetLang.value);
+      translatedText.textContent = `🔁 ${translated}`;
+      speakText(translated, targetLang.value);
+    } else {
+      translatedText.textContent = `⏳ ${speechText}`; // Show interim speech
+    }
+  }
+  
+  // Auto stop if no speech detected for 3 seconds
+  silenceTimeout = setTimeout(() => {
+    recognition.stop();
+  }, 5000);
+};
+
+// Translation Function using Google Translate API
+async function translateText(text, source, target) {
+  let url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
+  let response = await fetch(url);
+  let data = await response.json();
+  return data[0][0][0];
+}
+
+// Text-to-Speech Function
+const volume = document.getElementById("volume");
+const pitch = document.getElementById("pitch");
+const rate = document.getElementById("rate");
+
+function speakText(text, lang) {
+  let speech = new SpeechSynthesisUtterance(text);
+  let voices = speechSynthesis.getVoices();
+  speech.voice = voices[voiceSelect.value] || voices[0];
+  speech.volume = volume.value;
+  speech.pitch = pitch.value;
+  speech.rate = rate.value;
+  speech.lang = lang;
+  window.speechSynthesis.speak(speech);
+}
+
+
+    // Get User Location and Display It
+    function getUserLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          let response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`);
+          let data = await response.json();
+          let state = data.address.state || "Unknown";
+          let country = data.address.country || "Unknown";
+          let language = country === "India" ? indianStates[state] || "hi" : countryLanguageMap[country] || "en";
+          document.getElementById("userLocation").textContent = `📍 Location: ${state}, ${country} | Official Language: ${language}`;
+        });
+      }
+    }
+    getUserLocation();
+    
+    // Handle Recognition Errors
+    recognition.onerror = (event) => {
+      translatedText.textContent = "⚠️ Error: " + event.error;
+    };
+  </script>
+</body>
+</html>
